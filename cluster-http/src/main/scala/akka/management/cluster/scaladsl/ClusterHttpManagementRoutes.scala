@@ -4,9 +4,9 @@
 
 package akka.management.cluster.scaladsl
 import akka.actor.AddressFromURIString
-import akka.cluster.sharding.{ ClusterSharding, ShardRegion }
-import akka.cluster.{ Cluster, Member, MemberStatus }
-import akka.http.scaladsl.model.{ HttpMethod, HttpMethods, StatusCodes, Uri }
+import akka.cluster.sharding.{ClusterSharding, ShardRegion}
+import akka.cluster.{Cluster, Member, MemberStatus}
+import akka.http.scaladsl.model.{HttpMethod, HttpMethods, StatusCodes, Uri}
 import Uri.Path
 import akka.http.scaladsl.server.Route
 import akka.management.cluster._
@@ -16,6 +16,7 @@ import akka.util.Timeout
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
+import scala.util.control.NonFatal
 
 object ClusterHttpManagementRoutes extends ClusterHttpManagementJsonProtocol {
   import ClusterHttpManagementHelper._
@@ -55,7 +56,7 @@ object ClusterHttpManagementRoutes extends ClusterHttpManagementJsonProtocol {
       }
     }
 
-  private def routeGetMember(cluster: Cluster, member: Member): Route =
+  private def routeGetMember(member: Member): Route =
     get {
       complete {
         memberToClusterMember(member)
@@ -73,7 +74,7 @@ object ClusterHttpManagementRoutes extends ClusterHttpManagementJsonProtocol {
   private def routePutMember(cluster: Cluster, member: Member) =
     put {
       formField('operation) { operation =>
-        ClusterHttpManagementOperation.fromString(operation) match {
+        ClusterHttpManagementMemberOperation.fromString(operation) match {
           case Some(Down) =>
             cluster.down(member.uniqueAddress.address)
             complete(ClusterHttpManagementMessage(s"Downing ${member.uniqueAddress.address}"))
@@ -100,7 +101,7 @@ object ClusterHttpManagementRoutes extends ClusterHttpManagementJsonProtocol {
         path(RemainingDecoded) { memberAddress =>
           findMember(cluster, memberAddress) match {
             case Some(member) =>
-              routeGetMember(cluster, member) ~ routeDeleteMember(cluster, member) ~ routePutMember(cluster, member)
+              routeGetMember(member) ~ routeDeleteMember(cluster, member) ~ routePutMember(cluster, member)
             case None =>
               complete(
                 StatusCodes.NotFound -> ClusterHttpManagementMessage(
@@ -144,19 +145,44 @@ object ClusterHttpManagementRoutes extends ClusterHttpManagementJsonProtocol {
    * [[akka.cluster.Cluster]] instance. This version does not provide Basic Authentication.
    */
   def apply(cluster: Cluster): Route =
-    concat(
-      pathPrefix("cluster" / "members") {
+      pathPrefix("cluster") {
         concat(
           pathEndOrSingleSlash {
-            routeGetMembers(cluster) ~ routePostMembers(cluster)
+            routePutCluster(cluster)
           },
-          routeFindMember(cluster, readOnly = false)
+          pathPrefix("members") {
+            concat(
+              pathEndOrSingleSlash {
+                routeGetMembers(cluster) ~ routePostMembers(cluster)
+              },
+              routeFindMember(cluster, readOnly = false)
+            )
+          },
+          pathPrefix("shards" / Remaining) { shardRegionName =>
+            routeGetShardInfo(cluster, shardRegionName)
+          }
         )
-      },
-      pathPrefix("cluster" / "shards" / Remaining) { shardRegionName =>
-        routeGetShardInfo(cluster, shardRegionName)
       }
-    )
+
+  private def routePutCluster(cluster: Cluster): Route = {
+    put {
+      formField('operation) { operation =>
+        if (operation.toLowerCase == "prepare-for-full-shutdown") {
+          try {
+            val m = cluster.getClass.getMethod("prepareForFullClusterShutdown")
+            m.invoke(cluster)
+            complete(ClusterHttpManagementMessage(s"Preparing for full cluster shutdown"))
+          } catch {
+            case NonFatal(_) =>
+              complete(StatusCodes.BadRequest, "prepare-for-full-shutdown not supported in this Akka version")
+          }
+        } else {
+          complete(StatusCodes.BadRequest -> ClusterHttpManagementMessage("Operation not supported"))
+        }
+      }
+    }
+  }
+
 
   /**
    * Creates an instance of [[ClusterHttpManagementRoutes]] with only the read only routes.

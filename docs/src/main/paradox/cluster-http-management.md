@@ -58,15 +58,16 @@ Java
 The following table describes the usage of the API. All `GET` operations are exposed by default. `POST`, `PUT` and `DELETE` operations
 are only enabled if `akka.management.http.route-providers-read-only` is set to `false`.
 
-| Path                         | HTTP method | Required form fields | Description
-| ---------------------------- | ----------- | -------------------- | -----------
-| `/cluster/members/`          | GET         | None                 | Returns the status of the Cluster in JSON format.
-| `/cluster/members/`          | POST        | address: `{address}` | Executes join operation in cluster for the provided `{address}`.
-| `/cluster/members/{address}` | GET         | None                 | Returns the status of `{address}` in the Cluster in JSON format.
-| `/cluster/members/{address}` | DELETE      | None                 | Executes leave operation in cluster for provided `{address}`.
-| `/cluster/members/{address}` | PUT         | operation: Down      | Executes down operation in cluster for provided `{address}`.
-| `/cluster/members/{address}` | PUT         | operation: Leave     | Executes leave operation in cluster for provided `{address}`.
-| `/cluster/shards/{name}`     | GET         | None                 | Returns shard info for the shard region with the provided `{name}`
+| Path                         | HTTP method | Required form fields                 | Description
+| ---------------------------- | ----------- | -------------------------------------| -----------
+| `/cluster/members/`          | GET         | None                                 | Returns the status of the Cluster in JSON format.
+| `/cluster/members/`          | POST        | address: `{address}`                 | Executes join operation in cluster for the provided `{address}`.
+| `/cluster/members/{address}` | GET         | None                                 | Returns the status of `{address}` in the Cluster in JSON format.
+| `/cluster/members/{address}` | DELETE      | None                                 | Executes leave operation in cluster for provided `{address}`.
+| `/cluster/members/{address}` | PUT         | operation: Down                      | Executes down operation in cluster for provided `{address}`.
+| `/cluster/members/{address}` | PUT         | operation: Leave                     | Executes leave operation in cluster for provided `{address}`.
+| `/cluster/`                  | PUT         | operation: Prepare-for-full-shutdown | Executes a prepare for full shutdown operation in cluster.
+| `/cluster/shards/{name}`     | GET         | None                                 | Returns shard info for the shard region with the provided `{name}`
 
 The expected format of `address` follows the Cluster URI convention. Example: `akka://Main@myhostname.com:3311`
 
